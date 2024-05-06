@@ -3,7 +3,8 @@ use bitcoin::{
     hashes::sha256, hex::DisplayHex, taproot::TapLeaf, PublicKey, ScriptBuf, Transaction,
 };
 use lightning_invoice::Bolt11Invoice;
-use serde::{Deserialize, Serialize};
+use serde::de::Unexpected;
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -12,6 +13,7 @@ use tungstenite::{connect, http::response, stream::MaybeTlsStream, WebSocket};
 use ureq::json;
 use ureq::{AgentBuilder, TlsConnector};
 
+use crate::SwapType;
 use crate::{error::Error, network::Chain, util::secrets::Preimage};
 use crate::{BtcSwapScriptV2, LBtcSwapScriptV2};
 
@@ -36,10 +38,18 @@ pub struct HeightResponse {
     pub lbtc: u32,
 }
 
-/// Various limits of swap parameters
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct Limits {
+pub struct ReverseLimits {
+    /// Maximum swap amount
+    pub maximal: u64,
+    /// Minimum swap amount
+    pub minimal: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SubmarineLimits {
     /// Maximum swap amount
     pub maximal: u64,
     /// Minimum swap amount
@@ -48,35 +58,127 @@ pub struct Limits {
     pub maximal_zero_conf: u64,
 }
 
+fn check_limits_within(maximal: u64, minimal: u64, output_amount: u64) -> Result<(), Error> {
+    if output_amount < minimal as u64 {
+        return Err(Error::Protocol(format!(
+            "Ouput amount is below minimum {}",
+            minimal
+        )));
+    }
+    if output_amount > maximal as u64 {
+        return Err(Error::Protocol(format!(
+            "Ouput amount is above maximum {}",
+            maximal
+        )));
+    }
+    Ok(())
+}
+
+impl ReverseLimits {
+    /// Check whether the output amount intended is within the Limits
+    pub fn within(&self, output_amount: u64) -> Result<(), Error> {
+        check_limits_within(self.maximal, self.minimal, output_amount)
+    }
+}
+
+impl SubmarineLimits {
+    /// Check whether the output amount intended is within the Limits
+    pub fn within(&self, output_amount: u64) -> Result<(), Error> {
+        check_limits_within(self.maximal, self.minimal, output_amount)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct Fees {
-    /// The percentage of the "send amount" that is charged by Boltz as "Boltz Fee".
+pub struct ReverseMinerFees {
+    lockup: u64,
+    claim: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ReverseFees {
     pub percentage: f64,
-    /// The network fees charged for locking up and claiming funds onchain. These values are absolute, denominated in 10 ** -8 of the quote asset.
+    pub miner_fees: ReverseMinerFees,
+}
+
+impl ReverseFees {
+    pub fn total(&self, invoice_amount_sat: u64) -> u64 {
+        self.boltz(invoice_amount_sat) + self.claim_estimate() + self.lockup()
+    }
+
+    pub fn boltz(&self, invoice_amount_sat: u64) -> u64 {
+        ((self.percentage / 100.0) * invoice_amount_sat as f64).ceil() as u64
+    }
+
+    pub fn claim_estimate(&self) -> u64 {
+        self.miner_fees.claim
+    }
+
+    pub fn lockup(&self) -> u64 {
+        self.miner_fees.lockup
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SubmarineFees {
+    pub percentage: f64,
     pub miner_fees: u64,
 }
 
-/// Various swap parameters associated with different assets.
+impl SubmarineFees {
+    pub fn total(&self, invoice_amount_sat: u64) -> u64 {
+        self.boltz(invoice_amount_sat) + self.network()
+    }
+
+    pub fn boltz(&self, invoice_amount_sat: u64) -> u64 {
+        ((self.percentage / 100.0) * invoice_amount_sat as f64).ceil() as u64
+    }
+
+    pub fn network(&self) -> u64 {
+        self.miner_fees
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct SwapParams {
+pub struct ReversePair {
     /// Pair hash, representing an id for an asset-pair swap
     pub hash: String,
     /// The exchange rate of the pair
     pub rate: f64,
     /// The swap limits
-    pub limits: Limits,
+    pub limits: ReverseLimits,
     /// Total fees required for the swap
-    pub fees: Fees,
+    pub fees: ReverseFees,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SubmarinePair {
+    /// Pair hash, representing an id for an asset-pair swap
+    pub hash: String,
+    /// The exchange rate of the pair
+    pub rate: f64,
+    /// The swap limits
+    pub limits: ReverseLimits,
+    /// Total fees required for the swap
+    pub fees: SubmarineFees,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SwapResponse {
+pub struct GetSubmarinePairsResponse {
     #[serde(rename = "BTC")]
-    pub btc: HashMap<String, SwapParams>,
+    pub btc: HashMap<String, SubmarinePair>,
     #[serde(rename = "L-BTC")]
-    pub lbtc: HashMap<String, SwapParams>,
+    pub lbtc: HashMap<String, SubmarinePair>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetReversePairsResponse {
+    #[serde(rename = "BTC")]
+    pub btc: HashMap<String, ReversePair>,
 }
 
 /// Reference Documnetation: https://api.boltz.exchange/swagger
@@ -151,8 +253,12 @@ impl BoltzApiClientV2 {
         Ok(serde_json::from_str(&self.get("chain/heights")?)?)
     }
 
-    pub fn get_pairs(&self) -> Result<SwapResponse, Error> {
+    pub fn get_submarine_pairs(&self) -> Result<GetSubmarinePairsResponse, Error> {
         Ok(serde_json::from_str(&self.get("swap/submarine")?)?)
+    }
+
+    pub fn get_reverse_pairs(&self) -> Result<GetReversePairsResponse, Error> {
+        Ok(serde_json::from_str(&self.get("swap/reverse")?)?)
     }
 
     pub fn post_swap_req(
