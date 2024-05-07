@@ -168,15 +168,37 @@ pub struct SubmarinePair {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GetSubmarinePairsResponse {
     #[serde(rename = "BTC")]
-    pub btc: HashMap<String, SubmarinePair>,
+    btc: HashMap<String, SubmarinePair>,
     #[serde(rename = "L-BTC")]
-    pub lbtc: HashMap<String, SubmarinePair>,
+    lbtc: HashMap<String, SubmarinePair>,
+}
+
+impl GetSubmarinePairsResponse {
+    /// Get the BtcBtc Pair data from the response.
+    /// Returns None if not found.
+    pub fn get_btc_pair(&self) -> Option<SubmarinePair> {
+        self.btc.get("BTC").cloned()
+    }
+
+    /// Get the LBtcBtc Pair data from the response.
+    /// Returns None if not found.
+    pub fn get_lbtc_pair(&self) -> Option<SubmarinePair> {
+        self.btc.get("L-BTC").cloned()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GetReversePairsResponse {
     #[serde(rename = "BTC")]
     pub btc: HashMap<String, ReversePair>,
+}
+
+impl GetReversePairsResponse {
+    /// Get the BtcBtc Pair data from the response.
+    /// Returns None if not found.
+    pub fn get_btc_pair(&self) -> Option<ReversePair> {
+        self.btc.get("BTC").cloned()
+    }
 }
 
 /// Reference Documnetation: https://api.boltz.exchange/swagger
