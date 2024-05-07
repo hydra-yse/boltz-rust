@@ -178,14 +178,26 @@ pub struct GetSubmarinePairsResponse {
 impl GetSubmarinePairsResponse {
     /// Get the BtcBtc Pair data from the response.
     /// Returns None if not found.
-    pub fn get_btc_pair(&self) -> Option<SubmarinePair> {
+    pub fn get_btc_to_btc_pair(&self) -> Option<SubmarinePair> {
         self.btc.get("BTC").cloned()
+    }
+
+    /// Get the BtcLBtc Pair data from the response.
+    /// Returns None if not found.
+    pub fn get_btc_to_lbtc_pair(&self) -> Option<SubmarinePair> {
+        self.btc.get("L-BTC").cloned()
     }
 
     /// Get the LBtcBtc Pair data from the response.
     /// Returns None if not found.
-    pub fn get_lbtc_pair(&self) -> Option<SubmarinePair> {
-        self.btc.get("L-BTC").cloned()
+    pub fn get_lbtc_to_btc_pair(&self) -> Option<SubmarinePair> {
+        self.lbtc.get("BTC").cloned()
+    }
+
+    /// Get the LBtcLBtc Pair data from the response.
+    /// Returns None if not found.
+    pub fn get_lbtc_to_lbtc_pair(&self) -> Option<SubmarinePair> {
+        self.lbtc.get("L-BTC").cloned()
     }
 }
 
@@ -198,8 +210,14 @@ pub struct GetReversePairsResponse {
 impl GetReversePairsResponse {
     /// Get the BtcBtc Pair data from the response.
     /// Returns None if not found.
-    pub fn get_btc_pair(&self) -> Option<ReversePair> {
+    pub fn get_btc_to_btc_pair(&self) -> Option<ReversePair> {
         self.btc.get("BTC").cloned()
+    }
+
+    /// Get the BtcLBtc Pair data from the response.
+    /// Returns None if not found.
+    pub fn get_btc_to_lbtc_pair(&self) -> Option<ReversePair> {
+        self.btc.get("L-BTC").cloned()
     }
 }
 
