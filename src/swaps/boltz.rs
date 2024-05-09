@@ -352,6 +352,7 @@ impl FromStr for SubSwapStates {
             "transaction.confirmed" => Ok(SubSwapStates::TransactionConfirmed),
             "invoice.set" => Ok(SubSwapStates::InvoiceSet),
             "invoice.paid" => Ok(SubSwapStates::InvoicePaid),
+            "invoice.pending" => Ok(SubSwapStates::InvoicePending),
             "invoice.failedToPay" => Ok(SubSwapStates::InvoiceFailedToPay),
             "transaction.claimed" => Ok(SubSwapStates::TransactionClaimed),
             "swap.expired" => Ok(SubSwapStates::SwapExpired),
