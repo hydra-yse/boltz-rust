@@ -323,6 +323,7 @@ pub enum SubSwapStates {
     InvoicePending,
     InvoiceFailedToPay,
     TransactionClaimed,
+    TransactionClaimPending,
     SwapExpired,
 }
 
@@ -337,6 +338,7 @@ impl ToString for SubSwapStates {
             SubSwapStates::InvoicePending => "invoice.pending".to_string(),
             SubSwapStates::InvoiceFailedToPay => "invoice.failedToPay".to_string(),
             SubSwapStates::TransactionClaimed => "transaction.claimed".to_string(),
+            SubSwapStates::TransactionClaimPending => "transaction.claim.pending".to_string(),
             SubSwapStates::SwapExpired => "swap.expired".to_string(),
         }
     }
@@ -355,6 +357,7 @@ impl FromStr for SubSwapStates {
             "invoice.pending" => Ok(SubSwapStates::InvoicePending),
             "invoice.failedToPay" => Ok(SubSwapStates::InvoiceFailedToPay),
             "transaction.claimed" => Ok(SubSwapStates::TransactionClaimed),
+            "transaction.claim.pending" => Ok(SubSwapStates::TransactionClaimPending),
             "swap.expired" => Ok(SubSwapStates::SwapExpired),
             _ => Err(()),
         }
