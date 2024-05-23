@@ -264,7 +264,7 @@ impl BoltzApiClientV2 {
                     .send_json(data)
                 {
                     Ok(r) => {
-                        println!("{:#?}", r);
+                        // println!("{:#?}", r);
                         r.into_string()?
                     }
                     Err(ureq::Error::Status(code, response)) => {
