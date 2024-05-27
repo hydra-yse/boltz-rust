@@ -41,6 +41,7 @@ use elements::{
     script::{Builder as EBuilder, Instruction, Script as EScript},
     AddressParams,
 };
+use serde_json::Map;
 
 use super::{
     boltz::SwapType,
@@ -1087,20 +1088,26 @@ impl LBtcSwapTxV2 {
         is_lowball: Option<(&BoltzApiClientV2, Chain)>,
     ) -> Result<String, Error> {
         if let Some((boltz_api, chain)) = is_lowball {
-            log::info!("Attempting lowball braodcast");
+            log::info!("Attempting lowball broadcast");
             let tx_hex = serialize(signed_tx).to_lower_hex_string();
             let response = boltz_api.broadcast_tx(chain, &tx_hex)?;
-            let txid = response
-                .as_object()
-                .unwrap()
-                .get("id")
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .to_string();
-            log::info!("Broadcasted transaction via Boltz: {}", txid);
 
-            return Ok(txid);
+            match response.as_object() {
+                None => Err(Error::Protocol("Invalid broadcast reply".to_string())),
+                Some(response_map) => match response_map.get("id") {
+                    None => Err(Error::Protocol(
+                        "No txid found in broadcast reply".to_string(),
+                    )),
+                    Some(txid_val) => match txid_val.as_str() {
+                        None => Err(Error::Protocol("Returned txid is not a string".to_string())),
+                        Some(txid_str) => {
+                            let txid = txid_str.to_string();
+                            log::info!("Broadcasted transaction via Boltz: {txid}");
+                            Ok(txid)
+                        }
+                    },
+                },
+            }
         } else {
             let electrum_client = network_config.build_client()?;
             let serialized = serialize(signed_tx);
