@@ -8,9 +8,9 @@ use lightning_invoice::{Bolt11Invoice, RouteHintHop};
 use crate::{error::Error, network::electrum::ElectrumConfig};
 
 pub mod ec;
-pub mod secrets;
 #[cfg(feature = "lnurl")]
 pub mod lnurl;
+pub mod secrets;
 /// Setup function that will only run once, even if called multiple times.
 
 pub fn liquid_genesis_hash(electrum_config: &ElectrumConfig) -> Result<elements::BlockHash, Error> {
