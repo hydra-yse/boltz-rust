@@ -12,11 +12,13 @@ pub mod swaps;
 /// utilities (key, preimage, error)
 pub mod util;
 
+
 // Re-export common libs, so callers can make use of them and avoid version conflicts
 pub use bitcoin;
 pub use electrum_client;
 pub use elements;
 pub use lightning_invoice;
+#[cfg(feature = "lnurl")]
 pub use lnurl;
 
 // Re-export relevant structs under boltz_client::StructName for simplicity

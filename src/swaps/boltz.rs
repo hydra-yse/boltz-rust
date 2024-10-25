@@ -310,7 +310,7 @@ impl GetChainPairsResponse {
     }
 }
 
-/// Reference Documnetation: https://api.boltz.exchange/swagger
+/// Reference Documnetation: <https://api.boltz.exchange/swagger>
 #[derive(Debug, Clone)]
 pub struct BoltzApiClientV2 {
     base_url: String,
