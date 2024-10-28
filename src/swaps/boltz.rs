@@ -695,7 +695,7 @@ impl Subscription {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateReverseRequest {
-    pub invoice_amount: u32,
+    pub invoice_amount: u64,
     pub from: String,
     pub to: String,
     pub preimage_hash: sha256::Hash,
@@ -723,7 +723,7 @@ pub struct CreateReverseResponse {
     pub lockup_address: String,
     pub refund_public_key: PublicKey,
     pub timeout_block_height: u32,
-    pub onchain_amount: u32,
+    pub onchain_amount: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blinding_key: Option<String>,
 }
@@ -775,7 +775,7 @@ pub struct ChainSwapDetails {
     pub lockup_address: String,
     pub server_public_key: PublicKey,
     pub timeout_block_height: u32,
-    pub amount: u32,
+    pub amount: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blinding_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -797,9 +797,9 @@ pub struct CreateChainRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refund_public_key: Option<PublicKey>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub user_lock_amount: Option<u32>,
+    pub user_lock_amount: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub server_lock_amount: Option<u32>,
+    pub server_lock_amount: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pair_hash: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -12,7 +12,6 @@ pub mod swaps;
 /// utilities (key, preimage, error)
 pub mod util;
 
-
 // Re-export common libs, so callers can make use of them and avoid version conflicts
 pub use bitcoin;
 pub use electrum_client;
