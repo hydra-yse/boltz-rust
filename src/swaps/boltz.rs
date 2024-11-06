@@ -564,6 +564,23 @@ impl BoltzApiClientV2 {
         let end_point = format!("chain/{}/transaction", chain);
         Ok(serde_json::from_str(&self.post(&end_point, data)?)?)
     }
+
+    /// Fetch an invoice for the specified BOLT12 offer
+    pub fn get_bolt12_invoice(
+        &self,
+        offer: &str,
+        amount: u64,
+    ) -> Result<GetBolt12InvoiceResponse, Error> {
+        let data = json!(
+            {
+                "offer": offer,
+                "amount": amount
+            }
+        );
+
+        let end_point = "lightning/BTC/bolt12/fetch".to_string();
+        Ok(serde_json::from_str(&self.post(&end_point, data)?)?)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1282,6 +1299,13 @@ pub struct GetFeeEstimationResponse {
     pub btc: f64,
     #[serde(rename = "L-BTC")]
     pub lbtc: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetBolt12InvoiceResponse {
+    /// BOLT12 invoice
+    pub invoice: String,
 }
 
 #[cfg(test)]
