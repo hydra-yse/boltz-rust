@@ -581,6 +581,28 @@ impl BoltzApiClientV2 {
         let end_point = "lightning/BTC/bolt12/fetch".to_string();
         Ok(serde_json::from_str(&self.post(&end_point, data)?)?)
     }
+
+    /// Gets a quote for a Zero-Amount or over- or underpaid Chain Swap.
+    ///
+    /// If the user locked up a valid amount, it will return the server lockup amount. In all other
+    /// cases, it will return an error.
+    pub fn get_quote(&self, swap_id: &str) -> Result<GetQuoteResponse, Error> {
+        let end_point = format!("swap/chain/{swap_id}/quote");
+        Ok(serde_json::from_str(&self.get(&end_point)?)?)
+    }
+
+    /// Accepts a specific quote for a Zero-Amount or over- or underpaid Chain Swap.
+    pub fn accept_quote(&self, swap_id: &str, amount_sat: u64) -> Result<(), Error> {
+        let data = json!(
+            {
+                "amount": amount_sat
+            }
+        );
+
+        let end_point = format!("swap/chain/{swap_id}/quote");
+        self.post(&end_point, data)?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1306,6 +1328,13 @@ pub struct GetFeeEstimationResponse {
 pub struct GetBolt12InvoiceResponse {
     /// BOLT12 invoice
     pub invoice: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetQuoteResponse {
+    /// Server lockup amount, in sat
+    pub amount: u64,
 }
 
 #[cfg(test)]
