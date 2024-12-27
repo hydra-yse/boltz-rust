@@ -431,10 +431,10 @@ impl BtcSwapScript {
         tx_kind: SwapTxKind,
     ) -> Result<Option<(OutPoint, TxOut)>, Error> {
         let boltz_client: BoltzApiClientV2 = BoltzApiClientV2::new(boltz_url);
-        let chain_txs = boltz_client.get_chain_txs(swap_id)?;
         let hex = match self.swap_type {
             SwapType::Chain => match tx_kind {
                 SwapTxKind::Claim => {
+                    let chain_txs = boltz_client.get_chain_txs(swap_id)?;
                     chain_txs
                         .server_lock
                         .ok_or(Error::Protocol(
@@ -444,6 +444,7 @@ impl BtcSwapScript {
                         .hex
                 }
                 SwapTxKind::Refund => {
+                    let chain_txs = boltz_client.get_chain_txs(swap_id)?;
                     chain_txs
                         .user_lock
                         .ok_or(Error::Protocol(
