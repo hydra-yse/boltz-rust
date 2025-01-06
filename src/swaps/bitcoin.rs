@@ -467,7 +467,7 @@ impl BtcSwapScript {
         let mut vout = 0;
         for output in tx.clone().output {
             if output.script_pubkey == address.script_pubkey() {
-                let outpoint_0 = OutPoint::new(tx.txid(), vout);
+                let outpoint_0 = OutPoint::new(tx.compute_txid(), vout);
                 return Ok(Some((outpoint_0, output)));
             }
             vout += 1;
@@ -754,7 +754,7 @@ impl BtcSwapTx {
             )?;
 
             // Step 7: Get boltz's partial sig
-            let claim_tx_hex = serialize(&claim_tx).to_lower_hex_string();
+            let claim_tx_hex = claim_tx.serialize().to_lower_hex_string();
             let partial_sig_resp = match self.swap_script.swap_type {
                 SwapType::Chain => match (pub_nonce, partial_sig) {
                     (Some(pub_nonce), Some(partial_sig)) => boltz_api.post_chain_claim_tx_details(
@@ -817,13 +817,14 @@ impl BtcSwapTx {
             let schnorr_sig = musig_session.partial_sig_agg(&[boltz_partial_sig, our_partial_sig]);
 
             let final_schnorr_sig = Signature {
-                sig: schnorr_sig,
-                hash_ty: TapSighashType::Default,
+                signature: schnorr_sig,
+                sighash_type: TapSighashType::Default,
             };
 
             let output_key = self.swap_script.taproot_spendinfo()?.output_key();
 
-            let _ = secp.verify_schnorr(&final_schnorr_sig.sig, &msg, &output_key.to_inner())?;
+            let _ =
+                secp.verify_schnorr(&final_schnorr_sig.signature, &msg, &output_key.to_inner())?;
 
             let mut witness = Witness::new();
             witness.push(final_schnorr_sig.to_vec());
@@ -845,11 +846,11 @@ impl BtcSwapTx {
 
             let msg = Message::from_digest_slice(sighash.as_byte_array())?;
 
-            let sig = secp.sign_schnorr(&msg, &keys);
+            let signature = secp.sign_schnorr(&msg, &keys);
 
             let final_sig = Signature {
-                sig,
-                hash_ty: TapSighashType::Default,
+                signature,
+                sighash_type: TapSighashType::Default,
             };
 
             let control_block = self
@@ -1001,7 +1002,7 @@ impl BtcSwapTx {
                 )?;
 
                 // Step 7: Get boltz's partial sig
-                let refund_tx_hex = serialize(&refund_tx).to_lower_hex_string();
+                let refund_tx_hex = refund_tx.serialize().to_lower_hex_string();
                 let partial_sig_resp = match self.swap_script.swap_type {
                     SwapType::Chain => boltz_api.get_chain_partial_sig(
                         &swap_id,
@@ -1055,13 +1056,13 @@ impl BtcSwapTx {
                     musig_session.partial_sig_agg(&[boltz_partial_sig, our_partial_sig]);
 
                 let final_schnorr_sig = Signature {
-                    sig: schnorr_sig,
-                    hash_ty: TapSighashType::Default,
+                    signature: schnorr_sig,
+                    sighash_type: TapSighashType::Default,
                 };
 
                 let output_key = self.swap_script.taproot_spendinfo()?.output_key();
 
-                secp.verify_schnorr(&final_schnorr_sig.sig, &msg, &output_key.to_inner())?;
+                secp.verify_schnorr(&final_schnorr_sig.signature, &msg, &output_key.to_inner())?;
 
                 let mut witness = Witness::new();
                 witness.push(final_schnorr_sig.to_vec());
@@ -1098,11 +1099,11 @@ impl BtcSwapTx {
 
                 let msg = Message::from_digest_slice(sighash.as_byte_array())?;
 
-                let sig = Secp256k1::new().sign_schnorr(&msg, &keys);
+                let signature = Secp256k1::new().sign_schnorr(&msg, &keys);
 
                 let final_sig = Signature {
-                    sig,
-                    hash_ty: TapSighashType::Default,
+                    signature,
+                    sighash_type: TapSighashType::Default,
                 };
 
                 let mut witness = Witness::new();
