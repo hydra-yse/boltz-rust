@@ -1,4 +1,4 @@
-use std::{mem::swap, str::FromStr, time::Duration};
+use std::{str::FromStr, time::Duration};
 
 use boltz_client::{
     network::{electrum::ElectrumConfig, Chain},
