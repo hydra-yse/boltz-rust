@@ -1,10 +1,11 @@
 use std::time::Duration;
 
-use bitcoin::{key::rand::thread_rng, Amount, PublicKey};
+use bitcoin::{key::rand::thread_rng, PublicKey};
 use boltz_client::boltz::{
     BoltzApiClientV2, ChainSwapDetails, Cooperative, CreateChainRequest, Side, Subscription,
     SwapUpdate, BOLTZ_TESTNET_URL_V2,
 };
+use boltz_client::fees::Fee;
 use boltz_client::{
     network::{electrum::ElectrumConfig, Chain},
     util::{liquid_genesis_hash, secrets::Preimage, setup_logger},
@@ -180,13 +181,14 @@ fn bitcoin_liquid_v2_chain() {
                             .sign_claim(
                                 &our_claim_keys,
                                 &preimage,
-                                Amount::from_sat(1000),
+                                Fee::Absolute(1000),
                                 Some(Cooperative {
                                     boltz_api: &boltz_api_v2,
                                     swap_id: swap_id.clone(),
                                     pub_nonce: Some(pub_nonce),
                                     partial_sig: Some(partial_sig),
                                 }),
+                                false,
                             )
                             .unwrap();
 
@@ -217,7 +219,7 @@ fn bitcoin_liquid_v2_chain() {
                         let tx = refund_tx
                             .sign_refund(
                                 &our_refund_keys,
-                                1000,
+                                Fee::Absolute(1000),
                                 Some(Cooperative {
                                     boltz_api: &boltz_api_v2,
                                     swap_id: swap_id.clone(),
@@ -419,7 +421,7 @@ fn liquid_bitcoin_v2_chain() {
                             .sign_claim(
                                 &our_claim_keys,
                                 &preimage,
-                                1000,
+                                Fee::Absolute(1000),
                                 Some(Cooperative {
                                     boltz_api: &boltz_api_v2,
                                     swap_id: swap_id.clone(),
@@ -456,13 +458,14 @@ fn liquid_bitcoin_v2_chain() {
                         let tx = refund_tx
                             .sign_refund(
                                 &our_refund_keys,
-                                Amount::from_sat(1000),
+                                Fee::Absolute(1000),
                                 Some(Cooperative {
                                     boltz_api: &boltz_api_v2,
                                     swap_id: swap_id.clone(),
                                     pub_nonce: None,
                                     partial_sig: None,
                                 }),
+                                false,
                             )
                             .unwrap();
 

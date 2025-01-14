@@ -41,3 +41,4 @@ pub use swaps::{
     boltz,
     liquid::{LBtcSwapScript, LBtcSwapTx},
 };
+pub use util::fees;

@@ -36,6 +36,7 @@ use super::boltz::{
     SwapTxKind, SwapType, ToSign,
 };
 
+use crate::util::fees::{create_tx_with_fee, Fee};
 use elements::secp256k1_zkp::{
     musig, MusigAggNonce, MusigKeyAggCache, MusigPartialSignature, MusigPubNonce, MusigSession,
     MusigSessionId,
@@ -656,7 +657,7 @@ impl BtcSwapTx {
         &self,
         keys: &Keypair,
         preimage: &Preimage,
-        absolute_fees: u64,
+        fee: Fee,
         is_cooperative: Option<Cooperative>,
     ) -> Result<Transaction, Error> {
         if self.swap_script.swap_type == SwapType::Submarine {
@@ -671,42 +672,13 @@ impl BtcSwapTx {
             ));
         }
 
-        let preimage_bytes = if let Some(value) = preimage.bytes {
-            value
-        } else {
-            return Err(Error::Protocol(
-                "No preimage provided while signing.".to_string(),
-            ));
-        };
+        let mut claim_tx = create_tx_with_fee(
+            fee,
+            |fee| self.create_claim(keys, preimage, fee, is_cooperative.is_some()),
+            |tx| tx.vsize(),
+        )?;
 
-        // For claim, we only consider 1 utxo
-        let utxo = self.utxos.first().ok_or(Error::Protocol(
-            "No Bitcoin UTXO detected for this script".to_string(),
-        ))?;
-        let txin = TxIn {
-            previous_output: utxo.0,
-            sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
-            script_sig: ScriptBuf::new(),
-            witness: Witness::new(),
-        };
-
-        let destination_spk = self.output_address.script_pubkey();
-
-        let txout = TxOut {
-            script_pubkey: destination_spk,
-            value: Amount::from_sat(utxo.1.value.to_sat() - absolute_fees),
-        };
-
-        let mut claim_tx = Transaction {
-            version: Version::TWO,
-            lock_time: LockTime::ZERO,
-            input: vec![txin],
-            output: vec![txout],
-        };
-
-        let secp = Secp256k1::new();
-
-        // If its a cooperative claim, compute the Musig2 Aggregate Signature and use Keypath spending
+        // If it's a cooperative claim, compute the Musig2 Aggregate Signature and use Keypath spending
         if let Some(Cooperative {
             boltz_api,
             swap_id,
@@ -714,12 +686,14 @@ impl BtcSwapTx {
             partial_sig,
         }) = is_cooperative
         {
+            let secp = Secp256k1::new();
+
             // Start the Musig session
             // Step 1: Get the sighash
             let claim_tx_taproot_hash = SighashCache::new(claim_tx.clone())
                 .taproot_key_spend_signature_hash(
                     0,
-                    &Prevouts::All(&[&utxo.1]),
+                    &Prevouts::All(&[&self.utxos.first().unwrap().1]),
                     bitcoin::TapSighashType::Default,
                 )?;
 
@@ -826,7 +800,57 @@ impl BtcSwapTx {
             witness.push(final_schnorr_sig.to_vec());
 
             claim_tx.input[0].witness = witness;
+        }
+
+        Ok(claim_tx)
+    }
+
+    fn create_claim(
+        &self,
+        keys: &Keypair,
+        preimage: &Preimage,
+        absolute_fees: u64,
+        is_cooperative: bool,
+    ) -> Result<Transaction, Error> {
+        let preimage_bytes = if let Some(value) = preimage.bytes {
+            value
         } else {
+            return Err(Error::Protocol(
+                "No preimage provided while signing.".to_string(),
+            ));
+        };
+
+        // For claim, we only consider 1 utxo
+        let utxo = self.utxos.first().ok_or(Error::Protocol(
+            "No Bitcoin UTXO detected for this script".to_string(),
+        ))?;
+
+        let txin = TxIn {
+            previous_output: utxo.0,
+            sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+            script_sig: ScriptBuf::new(),
+            witness: Witness::new(),
+        };
+
+        let destination_spk = self.output_address.script_pubkey();
+
+        let txout = TxOut {
+            script_pubkey: destination_spk,
+            value: Amount::from_sat(utxo.1.value.to_sat() - absolute_fees),
+        };
+
+        let mut claim_tx = Transaction {
+            version: Version::TWO,
+            lock_time: LockTime::ZERO,
+            input: vec![txin],
+            output: vec![txout],
+        };
+
+        if is_cooperative {
+            claim_tx.input[0].witness = Self::stubbed_cooperative_witness();
+        } else {
+            let secp = Secp256k1::new();
+
             // If Non-Cooperative claim use the Script Path spending
             claim_tx.input[0].sequence = Sequence::ZERO;
 
@@ -873,7 +897,7 @@ impl BtcSwapTx {
     pub fn sign_refund(
         &self,
         keys: &Keypair,
-        absolute_fees: u64,
+        fee: Fee,
         is_cooperative: Option<Cooperative>,
     ) -> Result<Transaction, Error> {
         if self.swap_script.swap_type == SwapType::ReverseSubmarine {
@@ -888,70 +912,11 @@ impl BtcSwapTx {
             ));
         }
 
-        let utxos_amount = self
-            .utxos
-            .iter()
-            .fold(Amount::ZERO, |acc, (_, txo)| acc + txo.value);
-        let absolute_fees_amount = Amount::from_sat(absolute_fees);
-        if utxos_amount <= absolute_fees_amount {
-            return Err(Error::Generic(
-                format!("Cannot sign Refund Tx because utxos_amount ({utxos_amount}) <= absolute_fees ({absolute_fees_amount})")
-            ));
-        }
-        let output_amount: Amount = utxos_amount - absolute_fees_amount;
-        let output: TxOut = TxOut {
-            script_pubkey: self.output_address.script_pubkey(),
-            value: output_amount,
-        };
-
-        let unsigned_inputs = self
-            .utxos
-            .iter()
-            .map(|(outpoint, _txo)| TxIn {
-                previous_output: *outpoint,
-                script_sig: ScriptBuf::new(),
-                sequence: Sequence::MAX,
-                witness: Witness::new(),
-            })
-            .collect();
-
-        let lock_time = match self
-            .swap_script
-            .refund_script()
-            .instructions()
-            .filter_map(|i| {
-                let ins = i.unwrap();
-                if let Instruction::PushBytes(bytes) = ins {
-                    if bytes.len() < 5_usize {
-                        Some(LockTime::from_consensus(bytes_to_u32_little_endian(
-                            bytes.as_bytes(),
-                        )))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            })
-            .next()
-        {
-            Some(r) => r,
-            None => {
-                return Err(Error::Protocol(
-                    "Error getting timelock from refund script".to_string(),
-                ))
-            }
-        };
-
-        let mut refund_tx = Transaction {
-            version: Version::TWO,
-            lock_time,
-            input: unsigned_inputs,
-            output: vec![output],
-        };
-
-        let secp = Secp256k1::new();
-        let tx_outs: Vec<&TxOut> = self.utxos.iter().map(|(_, out)| out).collect();
+        let mut refund_tx = create_tx_with_fee(
+            fee,
+            |fee| self.create_refund(keys, fee, is_cooperative.is_some()),
+            |tx| tx.vsize(),
+        )?;
 
         if let Some(Cooperative {
             boltz_api, swap_id, ..
@@ -962,6 +927,7 @@ impl BtcSwapTx {
 
             for input_index in 0..refund_tx.input.len() {
                 // Step 1: Get the sighash
+                let tx_outs: Vec<&TxOut> = self.utxos.iter().map(|(_, out)| out).collect();
                 let refund_tx_taproot_hash = SighashCache::new(refund_tx.clone())
                     .taproot_key_spend_signature_hash(
                         input_index,
@@ -972,7 +938,6 @@ impl BtcSwapTx {
                 let msg = Message::from_digest_slice(refund_tx_taproot_hash.as_byte_array())?;
 
                 // Step 2: Get the Public and Secret nonces
-
                 let mut key_agg_cache = self.swap_script.musig_keyagg_cache();
 
                 let tweak = SecretKey::from_slice(
@@ -982,6 +947,7 @@ impl BtcSwapTx {
                         .as_byte_array(),
                 )?;
 
+                let secp = Secp256k1::new();
                 let _ = key_agg_cache.pubkey_xonly_tweak_add(&secp, tweak)?;
 
                 let session_id = MusigSessionId::new(&mut thread_rng());
@@ -1064,6 +1030,85 @@ impl BtcSwapTx {
                 witness.push(final_schnorr_sig.to_vec());
                 refund_tx.input[input_index].witness = witness;
             }
+        }
+
+        Ok(refund_tx)
+    }
+
+    fn create_refund(
+        &self,
+        keys: &Keypair,
+        absolute_fees: u64,
+        is_cooperative: bool,
+    ) -> Result<Transaction, Error> {
+        let utxos_amount = self
+            .utxos
+            .iter()
+            .fold(Amount::ZERO, |acc, (_, txo)| acc + txo.value);
+        let absolute_fees_amount = Amount::from_sat(absolute_fees);
+        if utxos_amount <= absolute_fees_amount {
+            return Err(Error::Generic(
+                format!("Cannot sign Refund Tx because utxos_amount ({utxos_amount}) <= absolute_fees ({absolute_fees_amount})")
+            ));
+        }
+        let output_amount: Amount = utxos_amount - absolute_fees_amount;
+        let output: TxOut = TxOut {
+            script_pubkey: self.output_address.script_pubkey(),
+            value: output_amount,
+        };
+
+        let unsigned_inputs = self
+            .utxos
+            .iter()
+            .map(|(outpoint, _txo)| TxIn {
+                previous_output: *outpoint,
+                script_sig: ScriptBuf::new(),
+                sequence: Sequence::MAX,
+                witness: Witness::new(),
+            })
+            .collect();
+
+        let lock_time = match self
+            .swap_script
+            .refund_script()
+            .instructions()
+            .filter_map(|i| {
+                let ins = i.unwrap();
+                if let Instruction::PushBytes(bytes) = ins {
+                    if bytes.len() < 5_usize {
+                        Some(LockTime::from_consensus(bytes_to_u32_little_endian(
+                            bytes.as_bytes(),
+                        )))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .next()
+        {
+            Some(r) => r,
+            None => {
+                return Err(Error::Protocol(
+                    "Error getting timelock from refund script".to_string(),
+                ))
+            }
+        };
+
+        let mut refund_tx = Transaction {
+            version: Version::TWO,
+            lock_time,
+            input: unsigned_inputs,
+            output: vec![output],
+        };
+
+        let tx_outs: Vec<&TxOut> = self.utxos.iter().map(|(_, out)| out).collect();
+
+        if is_cooperative {
+            for index in 0..refund_tx.input.len() {
+                refund_tx.input[index].witness = Self::stubbed_cooperative_witness();
+            }
         } else {
             let leaf_hash =
                 TapLeafHash::from_script(&self.swap_script.refund_script(), LeafVersion::TapScript);
@@ -1108,9 +1153,17 @@ impl BtcSwapTx {
                 witness.push(control_block.serialize());
                 refund_tx.input[input_index].witness = witness;
             }
-        };
+        }
 
         Ok(refund_tx)
+    }
+
+    fn stubbed_cooperative_witness() -> Witness {
+        let mut witness = Witness::new();
+        // Stub because we don't want to create cooperative signatures here
+        // but still be able to have an accurate size estimation
+        witness.push([0, 64]);
+        witness
     }
 
     /// Calculate the size of a transaction.
@@ -1120,8 +1173,10 @@ impl BtcSwapTx {
         let dummy_abs_fee = 0;
         // Can only calculate non-coperative claims
         let tx = match self.kind {
-            SwapTxKind::Claim => self.sign_claim(keys, preimage, dummy_abs_fee, None)?,
-            SwapTxKind::Refund => self.sign_refund(keys, dummy_abs_fee, None)?,
+            SwapTxKind::Claim => {
+                self.sign_claim(keys, preimage, Fee::Absolute(dummy_abs_fee), None)?
+            }
+            SwapTxKind::Refund => self.sign_refund(keys, Fee::Absolute(dummy_abs_fee), None)?,
         };
         Ok(tx.vsize())
     }

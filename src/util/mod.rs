@@ -8,6 +8,7 @@ use lightning_invoice::{Bolt11Invoice, RouteHintHop};
 use crate::{error::Error, network::electrum::ElectrumConfig};
 
 pub mod ec;
+pub mod fees;
 #[cfg(feature = "lnurl")]
 pub mod lnurl;
 pub mod secrets;

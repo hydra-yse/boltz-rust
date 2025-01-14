@@ -18,8 +18,9 @@ use bitcoin::{
     hex::{DisplayHex, FromHex},
     key::rand::thread_rng,
     secp256k1::Keypair,
-    Amount, PublicKey,
+    PublicKey,
 };
+use boltz_client::fees::Fee;
 use elements::encode::serialize;
 
 pub mod test_utils;
@@ -193,7 +194,7 @@ fn liquid_v2_submarine() {
 
                         match swap_tx.sign_refund(
                             &our_keys,
-                            Amount::from_sat(1000),
+                            Fee::Absolute(1000),
                             None,
                             // Some(Cooperative {
                             //     boltz_api: &boltz_api_v2,
@@ -201,6 +202,7 @@ fn liquid_v2_submarine() {
                             //     pub_nonce: None,
                             //     partial_sig: None,
                             // }),
+                            false,
                         ) {
                             Ok(tx) => {
                                 println!("{}", tx.serialize().to_lower_hex_string());
@@ -214,7 +216,7 @@ fn liquid_v2_submarine() {
                                 log::info!("Attempting Non-cooperative refund.");
 
                                 let tx = swap_tx
-                                    .sign_refund(&our_keys, Amount::from_sat(1000), None)
+                                    .sign_refund(&our_keys, Fee::Absolute(1000), None, false)
                                     .unwrap();
                                 let txid = swap_tx
                                     .broadcast(&tx, &ElectrumConfig::default_liquid(), None)
@@ -372,7 +374,7 @@ fn liquid_v2_reverse() {
                             .sign_claim(
                                 &our_keys,
                                 &preimage,
-                                Amount::from_sat(1000),
+                                Fee::Absolute(1000),
                                 None,
                                 // Some(Cooperative {
                                 //     boltz_api: &boltz_api_v2,
@@ -380,6 +382,7 @@ fn liquid_v2_reverse() {
                                 //     pub_nonce: None,
                                 //     partial_sig: None,
                                 // }),
+                                false,
                             )
                             .unwrap();
 
@@ -538,7 +541,7 @@ fn liquid_v2_reverse_script_path() {
                         .unwrap();
 
                         let tx = claim_tx
-                            .sign_claim(&our_keys, &preimage, Amount::from_sat(1000), None)
+                            .sign_claim(&our_keys, &preimage, Fee::Absolute(1000), None, false)
                             .unwrap();
 
                         claim_tx
@@ -636,7 +639,7 @@ fn test_recover_liquidv2_refund() {
         partial_sig: None,
     });
     let signed_tx = rev_swap_tx
-        .sign_refund(&keypair, Amount::from_sat(absolute_fees), coop)
+        .sign_refund(&keypair, Fee::Absolute(absolute_fees), coop, false)
         .unwrap();
     let tx_hex = serialize(&signed_tx).to_lower_hex_string();
     log::info!("TX_HEX: {}", tx_hex);
