@@ -69,13 +69,11 @@ impl BtcTestFramework {
             .generate_to_address(1, &mining_address)
             .unwrap();
 
-        let tf = Self {
+        Self {
             bitcoind,
             mining_address,
             test_wallet,
-        };
-
-        tf
+        }
     }
 
     pub fn generate_blocks(&self, n: u64) {
@@ -88,7 +86,7 @@ impl BtcTestFramework {
     pub fn send_coins(&self, addr: &Address, amount: Amount) -> Txid {
         self.bitcoind
             .client
-            .send_to_address(&addr, amount, None, None, None, None, None, None)
+            .send_to_address(addr, amount, None, None, None, None, None, None)
             .unwrap()
     }
 
@@ -201,7 +199,7 @@ impl LbtcTestFramework {
             .unwrap()
             .as_array()
             .unwrap()
-            .get(0)
+            .first()
         {
             let value = value.as_object().unwrap().clone();
             value

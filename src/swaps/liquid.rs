@@ -94,7 +94,7 @@ impl LBtcSwapScript {
                 Ok(Instruction::PushBytes(bytes)) => {
                     if last_op == OP_CHECKSIGVERIFY {
                         locktime =
-                            Some(LockTime::from_consensus(bytes_to_u32_little_endian(&bytes)));
+                            Some(LockTime::from_consensus(bytes_to_u32_little_endian(bytes)));
                     } else {
                         continue;
                     }
@@ -163,7 +163,7 @@ impl LBtcSwapScript {
                 Ok(Instruction::PushBytes(bytes)) => {
                     if last_op == OP_CHECKSIGVERIFY {
                         locktime =
-                            Some(LockTime::from_consensus(bytes_to_u32_little_endian(&bytes)));
+                            Some(LockTime::from_consensus(bytes_to_u32_little_endian(bytes)));
                     } else {
                         continue;
                     }
@@ -233,7 +233,7 @@ impl LBtcSwapScript {
                 Ok(Instruction::PushBytes(bytes)) => {
                     if last_op == OP_CHECKSIGVERIFY {
                         locktime =
-                            Some(LockTime::from_consensus(bytes_to_u32_little_endian(&bytes)));
+                            Some(LockTime::from_consensus(bytes_to_u32_little_endian(bytes)));
                     } else {
                         continue;
                     }
@@ -419,18 +419,16 @@ impl LBtcSwapScript {
         let bitcoin_txid = history.last().expect("txid expected").tx_hash;
         let raw_tx = electrum_client.transaction_get_raw(&bitcoin_txid)?;
         let tx: Transaction = elements::encode::deserialize(&raw_tx)?;
-        let mut vout = 0;
-        for output in tx.clone().output {
+        for (vout, output) in tx.clone().output.into_iter().enumerate() {
             if output.script_pubkey == address.script_pubkey() {
-                let outpoint_0 = OutPoint::new(tx.txid(), vout);
+                let outpoint_0 = OutPoint::new(tx.txid(), vout as u32);
 
                 return Ok((outpoint_0, output));
             }
-            vout += 1;
         }
-        return Err(Error::Protocol(
+        Err(Error::Protocol(
             "Electrum could not find a Liquid UTXO for script".to_string(),
-        ));
+        ))
     }
 
     /// Fetch utxo for script from BoltzApi
@@ -474,19 +472,17 @@ impl LBtcSwapScript {
             ));
         }
         let address = self.to_address(network_config.network())?;
-        let tx: Transaction = elements::encode::deserialize(&hex::decode(&hex.unwrap())?)?;
-        let mut vout = 0;
-        for output in tx.clone().output {
+        let tx: Transaction = elements::encode::deserialize(&hex::decode(hex.unwrap())?)?;
+        for (vout, output) in tx.clone().output.into_iter().enumerate() {
             if output.script_pubkey == address.script_pubkey() {
-                let outpoint_0 = OutPoint::new(tx.txid(), vout);
+                let outpoint_0 = OutPoint::new(tx.txid(), vout as u32);
 
                 return Ok((outpoint_0, output));
             }
-            vout += 1;
         }
-        return Err(Error::Protocol(
+        Err(Error::Protocol(
             "Boltz could not find a Liquid UTXO for script".to_string(),
-        ));
+        ))
     }
 
     // Get the chain genesis hash. Requires for sighash calculation
@@ -535,10 +531,10 @@ impl LBtcSwapTx {
             ));
         }
 
-        let (funding_outpoint, funding_utxo) = match swap_script.fetch_utxo(&network_config) {
+        let (funding_outpoint, funding_utxo) = match swap_script.fetch_utxo(network_config) {
             Ok(r) => r,
             Err(_) => swap_script.fetch_lockup_utxo_boltz(
-                &network_config,
+                network_config,
                 &boltz_url,
                 &swap_id,
                 SwapTxKind::Claim,
@@ -546,11 +542,11 @@ impl LBtcSwapTx {
         };
 
         let electrum = network_config.build_client()?;
-        let genesis_hash = liquid_genesis_hash(&network_config)?;
+        let genesis_hash = liquid_genesis_hash(network_config)?;
 
         Ok(LBtcSwapTx {
             kind: SwapTxKind::Claim,
-            swap_script: swap_script,
+            swap_script,
             output_address: Address::from_str(&output_address)?,
             funding_outpoint,
             funding_utxo,
@@ -561,7 +557,7 @@ impl LBtcSwapTx {
     /// Construct a RefundTX corresponding to the swap_script. Only works for Submarine and Chain Swaps.
     pub fn new_refund(
         swap_script: LBtcSwapScript,
-        output_address: &String,
+        output_address: &str,
         network_config: &ElectrumConfig,
         boltz_url: String,
         swap_id: String,
@@ -572,11 +568,11 @@ impl LBtcSwapTx {
             ));
         }
 
-        let address = Address::from_str(&output_address)?;
-        let (funding_outpoint, funding_utxo) = match swap_script.fetch_utxo(&network_config) {
+        let address = Address::from_str(output_address)?;
+        let (funding_outpoint, funding_utxo) = match swap_script.fetch_utxo(network_config) {
             Ok(r) => r,
             Err(_) => swap_script.fetch_lockup_utxo_boltz(
-                &network_config,
+                network_config,
                 &boltz_url,
                 &swap_id,
                 SwapTxKind::Refund,
@@ -584,11 +580,11 @@ impl LBtcSwapTx {
         };
 
         let electrum = network_config.build_client()?;
-        let genesis_hash = liquid_genesis_hash(&network_config)?;
+        let genesis_hash = liquid_genesis_hash(network_config)?;
 
         Ok(LBtcSwapTx {
             kind: SwapTxKind::Refund,
-            swap_script: swap_script,
+            swap_script,
             output_address: address,
             funding_outpoint,
             funding_utxo,
@@ -601,8 +597,8 @@ impl LBtcSwapTx {
     pub fn partial_sign(
         &self,
         keys: &Keypair,
-        pub_nonce: &String,
-        transaction_hash: &String,
+        pub_nonce: &str,
+        transaction_hash: &str,
     ) -> Result<(MusigPartialSignature, MusigPubNonce), Error> {
         // Step 1: Start with a Musig KeyAgg Cache
         let secp = Secp256k1::new();
@@ -640,8 +636,7 @@ impl LBtcSwapTx {
 
         let musig_session = MusigSession::new(&secp, &key_agg_cache, agg_nonce, msg);
 
-        let partial_sig =
-            musig_session.partial_sign(&secp, gen_sec_nonce, &keys, &key_agg_cache)?;
+        let partial_sig = musig_session.partial_sign(&secp, gen_sec_nonce, keys, &key_agg_cache)?;
 
         Ok((partial_sig, gen_pub_nonce))
     }
@@ -740,7 +735,7 @@ impl LBtcSwapTx {
             script_pubkey: self.output_address.script_pubkey(),
             value: blinded_value,
             asset: blinded_asset,
-            nonce: nonce,
+            nonce,
             witness: tx_out_witness,
         };
         let fee_output: TxOut = TxOut::new_fee(absolute_fees.to_sat(), asset_id);
@@ -815,7 +810,7 @@ impl LBtcSwapTx {
                 },
                 SwapType::ReverseSubmarine => boltz_api.get_reverse_partial_sig(
                     &swap_id,
-                    &preimage,
+                    preimage,
                     &claim_pub_nonce,
                     &claim_tx_hex,
                 ),
@@ -847,12 +842,12 @@ impl LBtcSwapTx {
 
             if (!boltz_partial_sig_verify) {
                 return Err(Error::Taproot(
-                    ("Unable to verify Partial Signature".to_string()),
+                    "Unable to verify Partial Signature".to_string(),
                 ));
             }
 
             let our_partial_sig =
-                musig_session.partial_sign(&secp, claim_sec_nonce, &keys, &key_agg_cache)?;
+                musig_session.partial_sign(&secp, claim_sec_nonce, keys, &key_agg_cache)?;
 
             let schnorr_sig = musig_session.partial_sig_agg(&[boltz_partial_sig, our_partial_sig]);
 
@@ -863,7 +858,7 @@ impl LBtcSwapTx {
 
             let output_key = self.swap_script.taproot_spendinfo()?.output_key();
 
-            let _ = secp.verify_schnorr(&final_schnorr_sig.sig, &msg, &output_key.into_inner())?;
+            secp.verify_schnorr(&final_schnorr_sig.sig, &msg, &output_key.into_inner())?;
 
             let mut script_witness = Witness::new();
             script_witness.push(final_schnorr_sig.to_vec());
@@ -892,7 +887,7 @@ impl LBtcSwapTx {
 
             let msg = Message::from_digest_slice(sighash.as_byte_array())?;
 
-            let sig = secp.sign_schnorr(&msg, &keys);
+            let sig = secp.sign_schnorr(&msg, keys);
 
             let final_sig = SchnorrSig {
                 sig,
@@ -910,7 +905,7 @@ impl LBtcSwapTx {
 
             let mut script_witness = Witness::new();
             script_witness.push(final_sig.to_vec());
-            script_witness.push(&preimage.bytes.unwrap()); // checked for none
+            script_witness.push(preimage.bytes.unwrap()); // checked for none
             script_witness.push(claim_script.as_bytes());
             script_witness.push(control_block.serialize());
 
@@ -1015,7 +1010,7 @@ impl LBtcSwapTx {
             script_pubkey: self.output_address.script_pubkey(),
             value: blinded_value,
             asset: blinded_asset,
-            nonce: nonce,
+            nonce,
             witness: tx_out_witness,
         };
         let fee_output: TxOut = TxOut::new_fee(absolute_fees.to_sat(), asset_id);
@@ -1027,8 +1022,8 @@ impl LBtcSwapTx {
             .filter_map(|i| {
                 let ins = i.unwrap();
                 if let Instruction::PushBytes(bytes) = ins {
-                    if bytes.len() < 5 as usize {
-                        Some(LockTime::from_consensus(bytes_to_u32_little_endian(&bytes)))
+                    if bytes.len() < 5_usize {
+                        Some(LockTime::from_consensus(bytes_to_u32_little_endian(bytes)))
                     } else {
                         None
                     }
@@ -1130,12 +1125,12 @@ impl LBtcSwapTx {
 
             if (!boltz_partial_sig_verify) {
                 return Err(Error::Taproot(
-                    ("Unable to verify Partial Signature".to_string()),
+                    "Unable to verify Partial Signature".to_string(),
                 ));
             }
 
             let our_partial_sig =
-                musig_session.partial_sign(&secp, sec_nonce, &keys, &key_agg_cache)?;
+                musig_session.partial_sign(&secp, sec_nonce, keys, &key_agg_cache)?;
 
             let schnorr_sig = musig_session.partial_sig_agg(&[boltz_partial_sig, our_partial_sig]);
 
@@ -1146,7 +1141,7 @@ impl LBtcSwapTx {
 
             let output_key = self.swap_script.taproot_spendinfo()?.output_key();
 
-            let _ = secp.verify_schnorr(&final_schnorr_sig.sig, &msg, &output_key.into_inner())?;
+            secp.verify_schnorr(&final_schnorr_sig.sig, &msg, &output_key.into_inner())?;
 
             let mut script_witness = Witness::new();
             script_witness.push(final_schnorr_sig.to_vec());
@@ -1174,7 +1169,7 @@ impl LBtcSwapTx {
 
             let msg = Message::from_digest_slice(sighash.as_byte_array())?;
 
-            let sig = secp.sign_schnorr(&msg, &keys);
+            let sig = secp.sign_schnorr(&msg, keys);
 
             let final_sig = SchnorrSig {
                 sig,
