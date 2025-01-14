@@ -21,12 +21,11 @@ const LBTC_MAINNET_ASSET_HASH: &str =
 
 /// Decodes the provided invoice to find the magic routing hint.
 pub fn find_magic_routing_hint(invoice: &str) -> Result<Option<RouteHintHop>, Error> {
-    let invoice = Bolt11Invoice::from_str(&invoice)?;
+    let invoice = Bolt11Invoice::from_str(invoice)?;
     Ok(invoice
         .private_routes()
         .iter()
-        .map(|route| &route.0)
-        .flatten()
+        .flat_map(|route| &route.0)
         .find(|hint| hint.short_channel_id == MAGIC_ROUTING_HINT_CONSTANT)
         .cloned())
 }
@@ -90,8 +89,8 @@ pub fn check_for_mrh(
     invoice: &str,
     network: Chain,
 ) -> Result<Option<(String, bitcoin::Amount)>, Error> {
-    if let Some(route_hint) = find_magic_routing_hint(&invoice)? {
-        let mrh_resp = boltz_api_v2.get_mrh_bip21(&invoice)?;
+    if let Some(route_hint) = find_magic_routing_hint(invoice)? {
+        let mrh_resp = boltz_api_v2.get_mrh_bip21(invoice)?;
 
         let (network_found, address, amount, assetid) = parse_bip21(&mrh_resp.bip21)?;
         let address_hash = sha256::Hash::hash(address.as_bytes());
@@ -135,7 +134,7 @@ pub fn check_for_mrh(
 pub fn sign_address(addr: &str, keys: &Keypair) -> Result<Signature, Error> {
     let address_hash = sha256::Hash::hash(addr.as_bytes());
     let msg = Message::from_digest_slice(address_hash.as_byte_array())?;
-    Ok(Secp256k1::new().sign_schnorr(&msg, &keys))
+    Ok(Secp256k1::new().sign_schnorr(&msg, keys))
 }
 
 #[test]

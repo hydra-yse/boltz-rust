@@ -123,14 +123,14 @@ impl ElectrumConfig {
             false => ElectrumUrl::Plaintext(electrum_url.into()),
         };
         ElectrumConfig {
-            network: network.clone(),
+            timeout,
+            network,
             url: electrum_url,
-            timeout: timeout,
         }
     }
     // Get a copy of the network (Chain) field.
     pub fn network(&self) -> Chain {
-        self.network.clone()
+        self.network
     }
     /// Builds an electrum_client::Client which can be used to make calls to electrum api
     pub fn build_client(&self) -> Result<electrum_client::Client, Error> {

@@ -40,8 +40,7 @@ pub fn fetch_invoice(address: &str, amount_msats: u64) -> Result<String, Error> 
             let pay_result = client
                 .get_invoice(&pay, amount_msats, None, None)
                 .map_err(|e| Error::HTTP(e.to_string()))?;
-            let invoice =
-                Bolt11Invoice::from_str(pay_result.invoice()).map_err(|e| Error::Bolt11(e))?;
+            let invoice = Bolt11Invoice::from_str(pay_result.invoice()).map_err(Error::Bolt11)?;
 
             if invoice.amount_milli_satoshis() != Some(amount_msats) {
                 return Err(Error::Generic(
@@ -56,7 +55,7 @@ pub fn fetch_invoice(address: &str, amount_msats: u64) -> Result<String, Error> 
 }
 
 pub fn create_withdraw_response(voucher: &str) -> Result<WithdrawalResponse, Error> {
-    let lnurl = LnUrl::from_str(&*voucher.to_lowercase())
+    let lnurl = LnUrl::from_str(&voucher.to_lowercase())
         .map_err(|_| Error::Generic("Invalid LNURL".to_string()))?;
 
     let client = Builder::default()

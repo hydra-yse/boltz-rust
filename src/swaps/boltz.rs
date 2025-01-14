@@ -24,6 +24,7 @@ use bitcoin::{
 use lightning_invoice::Bolt11Invoice;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fmt::{Display, Formatter, Write};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{collections::HashMap, fmt::format, net::TcpStream};
@@ -54,13 +55,13 @@ pub struct HeightResponse {
 }
 
 fn check_limits_within(maximal: u64, minimal: u64, output_amount: u64) -> Result<(), Error> {
-    if output_amount < minimal as u64 {
+    if output_amount < minimal {
         return Err(Error::Protocol(format!(
             "Output amount is below minimum {}",
             minimal
         )));
     }
-    if output_amount > maximal as u64 {
+    if output_amount > maximal {
         return Err(Error::Protocol(format!(
             "Output amount is above maximum {}",
             maximal
@@ -367,7 +368,7 @@ impl BoltzApiClientV2 {
                             }
                             ureq::Error::Transport(_) => ureq_err.into(),
                         };
-                        return Err(err.into());
+                        return Err(err);
                     }
                 };
                 response
@@ -678,22 +679,20 @@ impl CreateSubmarineResponse {
         our_pubkey: &PublicKey,
         chain: Chain,
     ) -> Result<(), Error> {
-        let preimage = Preimage::from_invoice_str(&invoice).unwrap();
+        let preimage = Preimage::from_invoice_str(invoice).unwrap();
 
         match chain {
             Chain::Bitcoin | Chain::BitcoinTestnet | Chain::BitcoinRegtest => {
-                let boltz_sub_script = BtcSwapScript::submarine_from_swap_resp(&self, *our_pubkey)?;
+                let boltz_sub_script = BtcSwapScript::submarine_from_swap_resp(self, *our_pubkey)?;
                 boltz_sub_script.validate_address(chain, self.address.clone())
             }
             Chain::Liquid | Chain::LiquidTestnet | Chain::LiquidRegtest => {
                 let blinding_key = self.blinding_key.as_ref().unwrap();
-                let boltz_sub_script =
-                    LBtcSwapScript::submarine_from_swap_resp(&self, *our_pubkey)?;
-                if &boltz_sub_script.hashlock != &preimage.hash160 {
+                let boltz_sub_script = LBtcSwapScript::submarine_from_swap_resp(self, *our_pubkey)?;
+                if boltz_sub_script.hashlock != preimage.hash160 {
                     return Err(Error::Protocol(format!(
                         "Hash160 mismatch: {},{}",
-                        boltz_sub_script.hashlock,
-                        preimage.hash160.to_string()
+                        boltz_sub_script.hashlock, preimage.hash160
                     )));
                 }
 
@@ -724,11 +723,11 @@ pub struct Subscription {
 }
 
 impl Subscription {
-    pub fn new(id: &String) -> Self {
+    pub fn new(id: &str) -> Self {
         Self {
             op: "subscribe".to_string(),
             channel: "swap.update".to_string(),
-            args: vec![id.clone()],
+            args: vec![id.to_owned()],
         }
     }
 }
@@ -779,24 +778,22 @@ impl CreateReverseResponse {
         chain: Chain,
     ) -> Result<(), Error> {
         let invoice = Bolt11Invoice::from_str(&self.invoice)?;
-        if &invoice.payment_hash().to_string() == &preimage.sha256.to_string() {
-            ()
-        } else {
+        if invoice.payment_hash().to_string() != preimage.sha256.to_string() {
             return Err(Error::Protocol(format!(
                 "Preimage missmatch : {},{}",
                 &invoice.payment_hash().to_string(),
-                preimage.sha256.to_string()
+                preimage.sha256
             )));
         }
 
         match chain {
             Chain::Bitcoin | Chain::BitcoinTestnet | Chain::BitcoinRegtest => {
-                let boltz_rev_script = BtcSwapScript::reverse_from_swap_resp(&self, *our_pubkey)?;
+                let boltz_rev_script = BtcSwapScript::reverse_from_swap_resp(self, *our_pubkey)?;
                 boltz_rev_script.validate_address(chain, self.lockup_address.clone())
             }
             Chain::Liquid | Chain::LiquidTestnet | Chain::LiquidRegtest => {
                 let blinding_key = self.blinding_key.as_ref().unwrap();
-                let boltz_rev_script = LBtcSwapScript::reverse_from_swap_resp(&self, *our_pubkey)?;
+                let boltz_rev_script = LBtcSwapScript::reverse_from_swap_resp(self, *our_pubkey)?;
                 boltz_rev_script.validate_address(chain, self.lockup_address.clone())
             }
         }
@@ -1073,9 +1070,9 @@ pub enum SubSwapStates {
     SwapExpired,
 }
 
-impl ToString for SubSwapStates {
-    fn to_string(&self) -> String {
-        match self {
+impl Display for SubSwapStates {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
             SubSwapStates::Created => "swap.created".to_string(),
             SubSwapStates::TransactionMempool => "transaction.mempool".to_string(),
             SubSwapStates::TransactionConfirmed => "transaction.confirmed".to_string(),
@@ -1087,7 +1084,8 @@ impl ToString for SubSwapStates {
             SubSwapStates::TransactionClaimPending => "transaction.claim.pending".to_string(),
             SubSwapStates::TransactionLockupFailed => "transaction.lockupFailed".to_string(),
             SubSwapStates::SwapExpired => "swap.expired".to_string(),
-        }
+        };
+        write!(f, "{}", str)
     }
 }
 
@@ -1159,9 +1157,9 @@ pub enum RevSwapStates {
     TransactionRefunded,
 }
 
-impl ToString for RevSwapStates {
-    fn to_string(&self) -> String {
-        match self {
+impl Display for RevSwapStates {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
             RevSwapStates::Created => "swap.created".to_string(),
             RevSwapStates::MinerFeePaid => "minerfee.paid".to_string(),
             RevSwapStates::TransactionMempool => "transaction.mempool".to_string(),
@@ -1171,7 +1169,8 @@ impl ToString for RevSwapStates {
             RevSwapStates::SwapExpired => "swap.expired".to_string(),
             RevSwapStates::TransactionFailed => "transaction.failed".to_string(),
             RevSwapStates::TransactionRefunded => "transaction.refunded".to_string(),
-        }
+        };
+        write!(f, "{}", str)
     }
 }
 
@@ -1236,9 +1235,9 @@ pub enum ChainSwapStates {
     TransactionRefunded,
 }
 
-impl ToString for ChainSwapStates {
-    fn to_string(&self) -> String {
-        match self {
+impl Display for ChainSwapStates {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
             ChainSwapStates::Created => "swap.created".to_string(),
             ChainSwapStates::TransactionZeroConfRejected => {
                 "transaction.zeroconf.rejected".to_string()
@@ -1254,7 +1253,8 @@ impl ToString for ChainSwapStates {
             ChainSwapStates::SwapExpired => "swap.expired".to_string(),
             ChainSwapStates::TransactionFailed => "transaction.failed".to_string(),
             ChainSwapStates::TransactionRefunded => "transaction.refunded".to_string(),
-        }
+        };
+        write!(f, "{}", str)
     }
 }
 
@@ -1294,12 +1294,13 @@ pub enum OrderSide {
     Sell,
 }
 
-impl ToString for OrderSide {
-    fn to_string(&self) -> String {
-        match self {
-            OrderSide::Buy => "buy".to_string(),
-            OrderSide::Sell => "sell".to_string(),
-        }
+impl Display for OrderSide {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            OrderSide::Buy => "buy",
+            OrderSide::Sell => "sell",
+        };
+        f.write_str(str)
     }
 }
 

@@ -92,7 +92,7 @@ fn liquid_v2_submarine() {
         let response = serde_json::from_str(&socket.read().unwrap().to_string());
 
         if response.is_err() {
-            if response.err().expect("expected").is_eof() {
+            if response.expect_err("expected").is_eof() {
                 continue;
             }
         } else {
@@ -104,7 +104,7 @@ fn liquid_v2_submarine() {
                 } => {
                     assert!(event == "subscribe");
                     assert!(channel == "swap.update");
-                    assert!(args.get(0).expect("expected") == &create_swap_response.clone().id);
+                    assert!(args.first().expect("expected") == &create_swap_response.clone().id);
                     log::info!(
                         "Successfully subscribed for Swap updates. Swap ID : {}",
                         create_swap_response.clone().id
@@ -118,7 +118,7 @@ fn liquid_v2_submarine() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let update = args.get(0).expect("expected");
+                    let update = args.first().expect("expected");
                     assert!(update.id == create_swap_response.clone().id);
                     log::info!("Got Update from server: {}", update.status);
 
@@ -240,7 +240,7 @@ fn liquid_v2_submarine() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let error = args.get(0).expect("expected");
+                    let error = args.first().expect("expected");
                     log::error!(
                         "Got Boltz response error : {} for swap: {}",
                         error.error,
@@ -322,7 +322,7 @@ fn liquid_v2_reverse() {
         let response = serde_json::from_str(&socket.read().unwrap().to_string());
 
         if response.is_err() {
-            if response.err().expect("expected").is_eof() {
+            if response.expect_err("expected").is_eof() {
                 continue;
             }
         } else {
@@ -334,7 +334,7 @@ fn liquid_v2_reverse() {
                 } => {
                     assert!(event == "subscribe");
                     assert!(channel == "swap.update");
-                    assert!(args.get(0).expect("expected") == &swap_id);
+                    assert!(args.first().expect("expected") == &swap_id);
                     log::info!("Subscription successful for swap : {}", &swap_id);
                 }
 
@@ -345,8 +345,8 @@ fn liquid_v2_reverse() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let update = args.get(0).expect("expected");
-                    assert!(&update.id == &swap_id);
+                    let update = args.first().expect("expected");
+                    assert!(update.id == swap_id);
                     log::info!("Got Update from server: {}", update.status);
 
                     if update.status == "swap.created" {
@@ -413,7 +413,7 @@ fn liquid_v2_reverse() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let error = args.get(0).expect("expected");
+                    let error = args.first().expect("expected");
                     println!("Got error : {} for swap: {}", error.error, error.id);
                 }
             }
@@ -491,7 +491,7 @@ fn liquid_v2_reverse_script_path() {
         let response = serde_json::from_str(&socket.read().unwrap().to_string());
 
         if response.is_err() {
-            if response.err().expect("expected").is_eof() {
+            if response.expect_err("expected").is_eof() {
                 continue;
             }
         } else {
@@ -503,7 +503,7 @@ fn liquid_v2_reverse_script_path() {
                 } => {
                     assert!(event == "subscribe");
                     assert!(channel == "swap.update");
-                    assert!(args.get(0).expect("expected") == &swap_id);
+                    assert!(args.first().expect("expected") == &swap_id);
                     log::info!("Subscription successful for swap : {}", &swap_id);
                 }
 
@@ -514,8 +514,8 @@ fn liquid_v2_reverse_script_path() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let update = args.get(0).expect("expected");
-                    assert!(&update.id == &swap_id);
+                    let update = args.first().expect("expected");
+                    assert!(update.id == swap_id);
                     log::info!("Got Update from server: {}", update.status);
 
                     if update.status == "swap.created" {
@@ -571,7 +571,7 @@ fn liquid_v2_reverse_script_path() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let error = args.get(0).expect("expected");
+                    let error = args.first().expect("expected");
                     println!("Got error : {} for swap: {}", error.error, error.id);
                 }
             }
@@ -622,7 +622,7 @@ fn test_recover_liquidv2_refund() {
 
     let rev_swap_tx = LBtcSwapTx::new_refund(
         swap_script,
-        &RETURN_ADDRESS.to_string(),
+        RETURN_ADDRESS,
         &network_config,
         BOLTZ_MAINNET_URL_V2.to_string(),
         id.clone(),
@@ -666,10 +666,10 @@ fn create_swap_script_v2(
         swap_type: SwapType::Submarine,
         side: None,
         funding_addrs: Some(address),
-        hashlock: hashlock,
-        receiver_pubkey: receiver_pubkey,
-        locktime: locktime,
-        sender_pubkey: sender_pubkey,
-        blinding_key: blinding_key,
+        hashlock,
+        receiver_pubkey,
+        locktime,
+        sender_pubkey,
+        blinding_key,
     }
 }

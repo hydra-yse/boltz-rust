@@ -46,7 +46,7 @@ impl SwapKey {
         index: u64,
     ) -> Result<SwapKey, Error> {
         let secp = Secp256k1::new();
-        let mnemonic_struct = Mnemonic::from_str(&mnemonic)?;
+        let mnemonic_struct = Mnemonic::from_str(mnemonic)?;
         let seed = mnemonic_struct.to_seed(passphrase);
         let root = Xpriv::new_master(bitcoin::Network::Testnet, &seed)?;
         let fingerprint = root.fingerprint(&secp);
@@ -58,10 +58,7 @@ impl SwapKey {
         };
         let derivation_path = format!(
             "m/{}h/{}h/{}h/0/{}",
-            purpose.to_string(),
-            network_path,
-            SUBMARINE_SWAP_ACCOUNT,
-            index
+            purpose, network_path, SUBMARINE_SWAP_ACCOUNT, index
         );
         let path = DerivationPath::from_str(&derivation_path)?;
         let child_xprv = root.derive_priv(&secp, &path)?;
@@ -69,8 +66,8 @@ impl SwapKey {
         let key_pair = Keypair::from_secret_key(&secp, &child_xprv.private_key);
 
         Ok(SwapKey {
-            fingerprint: fingerprint,
-            path: path,
+            path,
+            fingerprint,
             keypair: key_pair,
         })
     }
@@ -83,7 +80,7 @@ impl SwapKey {
         index: u64,
     ) -> Result<SwapKey, Error> {
         let secp = Secp256k1::new();
-        let mnemonic_struct = Mnemonic::from_str(&mnemonic)?;
+        let mnemonic_struct = Mnemonic::from_str(mnemonic)?;
 
         let seed = mnemonic_struct.to_seed(passphrase);
         let root = Xpriv::new_master(bitcoin::Network::Testnet, &seed)?;
@@ -105,8 +102,8 @@ impl SwapKey {
         let key_pair = Keypair::from_secret_key(&secp, &child_xprv.private_key);
 
         Ok(SwapKey {
-            fingerprint: fingerprint,
-            path: path,
+            path,
+            fingerprint,
             keypair: key_pair,
         })
     }
@@ -118,7 +115,7 @@ impl SwapKey {
         index: u64,
     ) -> Result<SwapKey, Error> {
         let secp = Secp256k1::new();
-        let mnemonic_struct = Mnemonic::from_str(&mnemonic)?;
+        let mnemonic_struct = Mnemonic::from_str(mnemonic)?;
 
         let seed = mnemonic_struct.to_seed(passphrase);
         let root = Xpriv::new_master(bitcoin::Network::Testnet, &seed)?;
@@ -140,8 +137,8 @@ impl SwapKey {
         let key_pair = Keypair::from_secret_key(&secp, &child_xprv.private_key);
 
         Ok(SwapKey {
-            fingerprint: fingerprint,
-            path: path,
+            path,
+            fingerprint,
             keypair: key_pair,
         })
     }
@@ -202,6 +199,21 @@ pub struct Preimage {
     pub hash160: hash160::Hash,
 }
 
+impl FromStr for Preimage {
+    type Err = Error;
+
+    /// Creates a struct from a preimage string.
+    fn from_str(preimage: &str) -> Result<Self, Self::Err> {
+        Self::from_vec(Vec::from_hex(preimage)?)
+    }
+}
+
+impl Default for Preimage {
+    fn default() -> Self {
+        Preimage::new()
+    }
+}
+
 impl Preimage {
     /// Creates a new random preimage
     pub fn new() -> Preimage {
@@ -210,15 +222,10 @@ impl Preimage {
         let hash160 = hash160::Hash::hash(&preimage);
 
         Preimage {
+            sha256,
+            hash160,
             bytes: Some(preimage),
-            sha256: sha256,
-            hash160: hash160,
         }
-    }
-
-    /// Creates a struct from a preimage string.
-    pub fn from_str(preimage: &str) -> Result<Preimage, Error> {
-        Self::from_vec(Vec::from_hex(preimage)?)
     }
 
     /// Creates a struct from a preimage vector.
@@ -260,18 +267,13 @@ impl Preimage {
     /// Extracts the preimage sha256 hash from a lightning invoice
     /// Creates a Preimage struct without a value and only a hash
     pub fn from_invoice_str(invoice_str: &str) -> Result<Preimage, Error> {
-        let invoice = Bolt11Invoice::from_str(&invoice_str)?;
-        Ok(Preimage::from_sha256_str(
-            &invoice.payment_hash().to_string(),
-        )?)
+        let invoice = Bolt11Invoice::from_str(invoice_str)?;
+        Preimage::from_sha256_str(&invoice.payment_hash().to_string())
     }
 
     /// Converts the preimage value bytes to String
     pub fn to_string(&self) -> Option<String> {
-        match self.bytes {
-            Some(result) => Some(result.to_lower_hex_string()),
-            None => None,
-        }
+        self.bytes.map(|res| res.to_lower_hex_string())
     }
 }
 
@@ -304,190 +306,6 @@ impl RefundSwapFile {
     }
 }
 
-/// Recovery items for storage
-// #[derive(Serialize, Deserialize, Debug, Clone)]
-// pub struct BtcSubmarineRecovery {
-//     pub id: String,
-//     pub refund_key: String,
-//     pub redeem_script: String,
-// }
-// impl BtcSubmarineRecovery {
-//     pub fn new(id: &str, refund_key: &Keypair, redeem_script: &str) -> Self {
-//         BtcSubmarineRecovery {
-//             id: id.to_string(),
-//             refund_key: refund_key.display_secret().to_string(),
-//             redeem_script: redeem_script.to_string(),
-//         }
-//     }
-// }
-// impl TryInto<RefundSwapFile> for BtcSubmarineRecovery {
-//     type Error = Error;
-//     fn try_into(self) -> Result<RefundSwapFile, Self::Error> {
-//         let script = BtcSwapScriptV2::submarine_from_str(&self.redeem_script)?;
-
-//         Ok(RefundSwapFile {
-//             id: self.id,
-//             currency: "BTC".to_string(),
-//             redeem_script: self.redeem_script,
-//             private_key: self.refund_key,
-//             timeout_block_height: script.locktime.to_consensus_u32(),
-//         })
-//     }
-// }
-
-// impl TryInto<BtcSwapScript> for &BtcSubmarineRecovery {
-//     type Error = Error;
-//     fn try_into(self) -> Result<BtcSwapScript, Self::Error> {
-//         Ok(BtcSwapScriptV2::submarine_from_str(&self.redeem_script)?)
-//     }
-// }
-
-// impl TryInto<Keypair> for &BtcSubmarineRecovery {
-//     type Error = Error;
-//     fn try_into(self) -> Result<Keypair, Self::Error> {
-//         let secp = Secp256k1::new();
-//         Ok(Keypair::from_seckey_str(&secp, &self.refund_key)?)
-//     }
-// }
-
-/// Recovery items for storage
-// #[derive(Serialize, Deserialize, Debug, Clone)]
-// pub struct BtcReverseRecovery {
-//     pub id: String,
-//     pub preimage: String,
-//     pub claim_key: String,
-//     pub redeem_script: String,
-// }
-// impl BtcReverseRecovery {
-//     pub fn new(
-//         id: &str,
-//         preimage: &Preimage,
-//         claim_key: &Keypair,
-//         redeem_script: &str,
-//     ) -> Result<Self, Error> {
-//         let preimage = preimage
-//             .to_string()
-//             .ok_or_else(|| Error::Protocol("Error parsing preimage to string".to_string()))?;
-
-//         Ok(BtcReverseRecovery {
-//             id: id.to_string(),
-//             claim_key: claim_key.display_secret().to_string(),
-//             preimage,
-//             redeem_script: redeem_script.to_string(),
-//         })
-//     }
-// }
-// impl TryInto<BtcSwapScript> for &BtcReverseRecovery {
-//     type Error = Error;
-//     fn try_into(self) -> Result<BtcSwapScript, Self::Error> {
-//         Ok(BtcSwapScript::reverse_from_str(&self.redeem_script)?)
-//     }
-// }
-
-// impl TryInto<Keypair> for &BtcReverseRecovery {
-//     type Error = Error;
-//     fn try_into(self) -> Result<Keypair, Self::Error> {
-//         let secp = Secp256k1::new();
-//         Ok(Keypair::from_seckey_str(&secp, &self.claim_key)?)
-//     }
-// }
-// impl TryInto<Preimage> for &BtcReverseRecovery {
-//     type Error = Error;
-//     fn try_into(self) -> Result<Preimage, Self::Error> {
-//         Ok(Preimage::from_str(&self.preimage)?)
-//     }
-// }
-
-// /// Recovery items for storage
-// #[derive(Serialize, Deserialize, Debug, Clone)]
-// pub struct LBtcSubmarineRecovery {
-//     pub id: String,
-//     pub refund_key: String,
-//     pub blinding_key: String,
-//     pub redeem_script: String,
-// }
-// impl LBtcSubmarineRecovery {
-//     pub fn new(
-//         id: &str,
-//         refund_key: &Keypair,
-//         blinding_key: &ZKKeyPair,
-//         redeem_script: &str,
-//     ) -> Self {
-//         LBtcSubmarineRecovery {
-//             id: id.to_string(),
-//             refund_key: refund_key.display_secret().to_string(),
-//             redeem_script: redeem_script.to_string(),
-//             blinding_key: blinding_key.display_secret().to_string(),
-//         }
-//     }
-// }
-// impl TryInto<RefundSwapFile> for LBtcSubmarineRecovery {
-//     type Error = Error;
-//     fn try_into(self) -> Result<RefundSwapFile, Self::Error> {
-//         let script = LBtcSwapScript::submarine_from_str(&self.redeem_script, &self.blinding_key)?;
-//         Ok(RefundSwapFile {
-//             id: self.id,
-//             currency: "L-BTC".to_string(),
-//             redeem_script: self.redeem_script,
-//             private_key: self.refund_key,
-//             timeout_block_height: script.locktime.to_consensus_u32(),
-//         })
-//     }
-// }
-// /// Recovery items for storage
-// #[derive(Serialize, Deserialize, Debug, Clone)]
-// pub struct LBtcReverseRecovery {
-//     pub id: String,
-//     pub preimage: String,
-//     pub claim_key: String,
-//     pub blinding_key: String,
-//     pub redeem_script: String,
-// }
-// impl LBtcReverseRecovery {
-//     pub fn new(
-//         id: &str,
-//         preimage: &Preimage,
-//         claim_key: &Keypair,
-//         blinding_key: &ZKKeyPair,
-//         redeem_script: &str,
-//     ) -> Result<Self, Error> {
-//         let preimage = preimage
-//             .to_string()
-//             .ok_or_else(|| Error::Protocol("Error parsing preimage to string".to_string()))?;
-
-//         Ok(LBtcReverseRecovery {
-//             id: id.to_string(),
-//             claim_key: claim_key.display_secret().to_string(),
-//             blinding_key: blinding_key.display_secret().to_string(),
-//             preimage,
-//             redeem_script: redeem_script.to_string(),
-//         })
-//     }
-// }
-// impl TryInto<LBtcSwapScript> for &LBtcReverseRecovery {
-//     type Error = Error;
-//     fn try_into(self) -> Result<LBtcSwapScript, Self::Error> {
-//         Ok(LBtcSwapScript::reverse_from_str(
-//             &self.redeem_script,
-//             &self.blinding_key,
-//         )?)
-//     }
-// }
-
-// impl TryInto<Keypair> for &LBtcReverseRecovery {
-//     type Error = Error;
-//     fn try_into(self) -> Result<Keypair, Self::Error> {
-//         let secp = Secp256k1::new();
-//         Ok(Keypair::from_seckey_str(&secp, &self.claim_key)?)
-//     }
-// }
-// impl TryInto<Preimage> for &LBtcReverseRecovery {
-//     type Error = Error;
-//     fn try_into(self) -> Result<Preimage, Self::Error> {
-//         Ok(Preimage::from_str(&self.preimage)?)
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -496,7 +314,7 @@ mod tests {
     #[test]
     fn test_derivation() {
         let mnemonic: &str = "bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon bacon";
-        let index = 0 as u64; // 0
+        let index = 0_u64; // 0
         let sk = SwapKey::from_submarine_account(mnemonic, "", Chain::Bitcoin, index).unwrap();
         let lsk: LiquidSwapKey = match LiquidSwapKey::try_from(sk.clone()) {
             Ok(t) => t,

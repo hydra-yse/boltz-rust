@@ -103,7 +103,7 @@ fn bitcoin_liquid_v2_chain() {
         let response = serde_json::from_str(&socket.read().unwrap().to_string());
 
         if response.is_err() {
-            if response.err().expect("Error in websocket respo").is_eof() {
+            if response.expect_err("Error in websocket respo").is_eof() {
                 continue;
             }
         } else {
@@ -115,7 +115,7 @@ fn bitcoin_liquid_v2_chain() {
                 } => {
                     assert!(event == "subscribe");
                     assert!(channel == "swap.update");
-                    assert!(args.get(0).expect("expected") == &swap_id);
+                    assert!(args.first().expect("expected") == &swap_id);
                     log::info!(
                         "Successfully subscribed for Swap updates. Swap ID : {}",
                         swap_id
@@ -129,7 +129,7 @@ fn bitcoin_liquid_v2_chain() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let update = args.get(0).expect("expected");
+                    let update = args.first().expect("expected");
                     assert!(update.id == swap_id);
                     log::info!("Got Update from server: {}", update.status);
 
@@ -243,7 +243,7 @@ fn bitcoin_liquid_v2_chain() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let error = args.get(0).expect("expected");
+                    let error = args.first().expect("expected");
                     log::error!(
                         "Got Boltz response error : {} for swap: {}",
                         error.error,
@@ -342,7 +342,7 @@ fn liquid_bitcoin_v2_chain() {
         let response = serde_json::from_str(&socket.read().unwrap().to_string());
 
         if response.is_err() {
-            if response.err().expect("Error in websocket respo").is_eof() {
+            if response.expect_err("Error in websocket respo").is_eof() {
                 continue;
             }
         } else {
@@ -354,7 +354,7 @@ fn liquid_bitcoin_v2_chain() {
                 } => {
                     assert!(event == "subscribe");
                     assert!(channel == "swap.update");
-                    assert!(args.get(0).expect("expected") == &swap_id);
+                    assert!(args.first().expect("expected") == &swap_id);
                     log::info!(
                         "Successfully subscribed for Swap updates. Swap ID : {}",
                         swap_id
@@ -368,7 +368,7 @@ fn liquid_bitcoin_v2_chain() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let update = args.get(0).expect("expected");
+                    let update = args.first().expect("expected");
                     assert!(update.id == swap_id);
                     log::info!("Got Update from server: {}", update.status);
 
@@ -482,7 +482,7 @@ fn liquid_bitcoin_v2_chain() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let error = args.get(0).expect("expected");
+                    let error = args.first().expect("expected");
                     log::error!(
                         "Got Boltz response error : {} for swap: {}",
                         error.error,

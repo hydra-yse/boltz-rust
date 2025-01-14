@@ -87,7 +87,7 @@ fn bitcoin_v2_submarine() {
         let response = serde_json::from_str(&socket.read().unwrap().to_string());
 
         if response.is_err() {
-            if response.err().expect("expected").is_eof() {
+            if response.expect_err("expected").is_eof() {
                 continue;
             }
         } else {
@@ -99,7 +99,7 @@ fn bitcoin_v2_submarine() {
                 } => {
                     assert!(event == "subscribe");
                     assert!(channel == "swap.update");
-                    assert!(args.get(0).expect("expected") == swap_id);
+                    assert!(args.first().expect("expected") == swap_id);
                     log::info!(
                         "Successfully subscribed for Swap updates. Swap ID : {}",
                         swap_id
@@ -113,8 +113,8 @@ fn bitcoin_v2_submarine() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let update = args.get(0).expect("expected");
-                    assert!(update.id == swap_id.to_owned());
+                    let update = args.first().expect("expected");
+                    assert!(update.id == *swap_id);
                     log::info!("Got Update from server: {}", update.status);
 
                     // Invoice is Set. Waiting for us to send onchain tx.
@@ -143,7 +143,7 @@ fn bitcoin_v2_submarine() {
                         .expect("Funding UTXO not found");
 
                         let claim_tx_response = boltz_api_v2
-                            .get_submarine_claim_tx_details(&swap_id)
+                            .get_submarine_claim_tx_details(swap_id)
                             .unwrap();
 
                         log::debug!("Received claim tx details : {:?}", claim_tx_response);
@@ -166,7 +166,7 @@ fn bitcoin_v2_submarine() {
                             )
                             .unwrap();
                         boltz_api_v2
-                            .post_submarine_claim_tx_details(&swap_id, pub_nonce, partial_sig)
+                            .post_submarine_claim_tx_details(swap_id, pub_nonce, partial_sig)
                             .unwrap();
                         log::info!("Successfully Sent partial signature");
                     }
@@ -230,7 +230,7 @@ fn bitcoin_v2_submarine() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let error = args.get(0).expect("expected");
+                    let error = args.first().expect("expected");
                     log::error!(
                         "Got Boltz response error : {} for swap: {}",
                         error.error,
@@ -303,7 +303,7 @@ fn bitcoin_v2_reverse() {
         let swap_id = reverse_resp.id.clone();
         let response = serde_json::from_str(&socket.read().unwrap().to_string());
         if response.is_err() {
-            if response.err().expect("expected").is_eof() {
+            if response.expect_err("expected").is_eof() {
                 continue;
             }
         } else {
@@ -315,7 +315,7 @@ fn bitcoin_v2_reverse() {
                 } => {
                     assert!(event == "subscribe");
                     assert!(channel == "swap.update");
-                    assert!(args.get(0).expect("expected") == &swap_id);
+                    assert!(args.first().expect("expected") == &swap_id);
                     log::info!("Subscription successful for swap : {}", &swap_id);
                 }
 
@@ -326,8 +326,8 @@ fn bitcoin_v2_reverse() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let update = args.get(0).expect("expected");
-                    assert!(&update.id == &swap_id);
+                    let update = args.first().expect("expected");
+                    assert!(update.id == swap_id);
                     log::info!("Got Update from server: {}", update.status);
 
                     if update.status == "swap.created" {
@@ -384,7 +384,7 @@ fn bitcoin_v2_reverse() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let error = args.get(0).expect("expected");
+                    let error = args.first().expect("expected");
                     println!("Got error : {} for swap: {}", error.error, error.id);
                 }
             }
@@ -455,7 +455,7 @@ fn bitcoin_v2_reverse_script_path() {
         let response = serde_json::from_str(&socket.read().unwrap().to_string());
 
         if response.is_err() {
-            if response.err().expect("expected").is_eof() {
+            if response.expect_err("expected").is_eof() {
                 continue;
             }
         } else {
@@ -467,7 +467,7 @@ fn bitcoin_v2_reverse_script_path() {
                 } => {
                     assert!(event == "subscribe");
                     assert!(channel == "swap.update");
-                    assert!(args.get(0).expect("expected") == &swap_id);
+                    assert!(args.first().expect("expected") == &swap_id);
                     log::info!("Subscription successful for swap : {}", &swap_id);
                 }
 
@@ -478,8 +478,8 @@ fn bitcoin_v2_reverse_script_path() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let update = args.get(0).expect("expected");
-                    assert!(&update.id == &swap_id);
+                    let update = args.first().expect("expected");
+                    assert!(update.id == swap_id);
                     log::info!("Got Update from server: {}", update.status);
 
                     if update.status == "swap.created" {
@@ -526,7 +526,7 @@ fn bitcoin_v2_reverse_script_path() {
                 } => {
                     assert!(event == "update");
                     assert!(channel == "swap.update");
-                    let error = args.get(0).expect("expected");
+                    let error = args.first().expect("expected");
                     println!("Got error : {} for swap: {}", error.error, error.id);
                 }
             }
