@@ -481,6 +481,12 @@ impl BoltzApiClientV2 {
         )?)
     }
 
+    pub fn get_submarine_preimage(&self, id: &str) -> Result<SubmarineSwapPreimageResp, Error> {
+        Ok(serde_json::from_str(
+            &self.get(&format!("swap/submarine/{}/preimage", id))?,
+        )?)
+    }
+
     pub fn get_chain_txs(&self, id: &str) -> Result<ChainSwapTxResp, Error> {
         Ok(serde_json::from_str(
             &self.get(&format!("swap/chain/{}/transactions", id))?,
@@ -945,6 +951,12 @@ pub struct SubmarineSwapTxResp {
     pub timeout_block_height: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout_eta: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubmarineSwapPreimageResp {
+    pub preimage: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
