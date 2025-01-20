@@ -20,6 +20,7 @@ use bitcoin::{
     secp256k1::Keypair,
     PublicKey,
 };
+use boltz_client::fees::Fee;
 
 pub mod test_utils;
 
@@ -177,7 +178,7 @@ fn bitcoin_v2_submarine() {
                     }
 
                     // This means the funding transaction was rejected by Boltz for whatever reason, and we need to get
-                    // fund back via refund.
+                    // the funds back via refund.
                     if update.status == "transaction.lockupFailed"
                         || update.status == "invoice.failedToPay"
                     {
@@ -192,7 +193,7 @@ fn bitcoin_v2_submarine() {
 
                         match swap_tx.sign_refund(
                             &our_keys,
-                            1000,
+                            Fee::Absolute(1000),
                             Some(Cooperative {
                                 boltz_api: &boltz_api_v2,
                                 swap_id: swap_id.clone(),
@@ -210,7 +211,9 @@ fn bitcoin_v2_submarine() {
                                 log::info!("Cooperative refund failed. {:?}", e);
                                 log::info!("Attempting Non-cooperative refund.");
 
-                                let tx = swap_tx.sign_refund(&our_keys, 1000, None).unwrap();
+                                let tx = swap_tx
+                                    .sign_refund(&our_keys, Fee::Absolute(1000), None)
+                                    .unwrap();
                                 let txid = swap_tx
                                     .broadcast(&tx, &ElectrumConfig::default_bitcoin())
                                     .unwrap();
@@ -353,7 +356,7 @@ fn bitcoin_v2_reverse() {
                             .sign_claim(
                                 &our_keys,
                                 &preimage,
-                                1000,
+                                Fee::Absolute(1000),
                                 Some(Cooperative {
                                     boltz_api: &boltz_api_v2,
                                     swap_id: swap_id.clone(),
@@ -502,7 +505,7 @@ fn bitcoin_v2_reverse_script_path() {
                         .expect("Funding tx expected");
 
                         let tx = claim_tx
-                            .sign_claim(&our_keys, &preimage, 1000, None)
+                            .sign_claim(&our_keys, &preimage, Fee::Absolute(1000), None)
                             .unwrap();
 
                         claim_tx
